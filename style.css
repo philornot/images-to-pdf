@@ -1,0 +1,675 @@
+/* ── Design tokens ─────────────────────────────────────────────── */
+:root {
+    --bg: #0e0e0e;
+    --surface: #171717;
+    --border: #2a2a2a;
+    --accent: #e8ff47;
+    --accent-dim: #b5c936;
+    --text: #f0f0f0;
+    --muted: #666;
+    --danger: #ff5a5a;
+    --radius: 6px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+    --sidebar-w: 300px;
+    --mobile-bar-h: 68px;
+}
+
+/* ── Reset ──────────────────────────────────────────────────────── */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* ── Base ───────────────────────────────────────────────────────── */
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono), monospace;
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    overflow-x: hidden;
+}
+
+/* ── Header ─────────────────────────────────────────────────────── */
+header {
+    padding: 1.25rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.logo-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.logo {
+    font-family: var(--sans), sans-serif;
+    font-weight: 800;
+    font-size: clamp(1.3rem, 2.5vw, 1.8rem);
+    letter-spacing: -0.03em;
+    color: var(--text);
+    line-height: 1;
+}
+
+.logo span {
+    color: var(--accent);
+}
+
+.tagline {
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    /* Intentionally NOT uppercase — the full sentence reads better in sentence case */
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+}
+
+.badge {
+    font-size: 0.62rem;
+    background: #1a1a00;
+    color: var(--accent-dim);
+    border: 1px solid var(--accent-dim);
+    padding: 0.2rem 0.6rem;
+    border-radius: 99px;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+}
+
+/* Language toggle */
+.lang-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.lang-toggle button {
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono), monospace;
+    font-size: 0.65rem;
+    padding: 0.3rem 0.6rem;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    transition: background 0.15s, color 0.15s;
+    /* Minimum touch target */
+    min-height: 32px;
+}
+
+.lang-toggle button.active {
+    background: var(--accent);
+    color: #000;
+}
+
+.lang-toggle button:not(.active):hover {
+    background: var(--surface);
+    color: var(--text);
+}
+
+/* ── Main layout ─────────────────────────────────────────────────── */
+main {
+    display: grid;
+    grid-template-columns: 1fr var(--sidebar-w);
+    min-height: 0;
+}
+
+/* ── Drop zone ───────────────────────────────────────────────────── */
+#drop-zone {
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    min-height: 55vh;
+}
+
+.drop-target {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+}
+
+/* Used by JS: dropTarget.classList.add('dragover') */
+.drop-target:hover,
+.drop-target.dragover {
+    border-color: var(--accent);
+    background: rgba(232, 255, 71, 0.04);
+}
+
+.drop-target input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%;
+    height: 100%;
+}
+
+.drop-icon {
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: center;
+    color: var(--muted);
+    opacity: 0.45;
+}
+
+.drop-target p {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.7;
+}
+
+.drop-target strong {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.formats {
+    color: #444;
+    font-size: 0.63rem;
+    margin-top: 0.3rem;
+    display: block;
+}
+
+/* ── Thumbnail grid ──────────────────────────────────────────────── */
+#preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.65rem;
+}
+
+/* Used by JS: card.className = 'thumb-card' */
+.thumb-card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: grab;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+    animation: fadeUp 0.25s ease both;
+    touch-action: none; /* allow JS drag on touch */
+}
+
+.thumb-card:active {
+    cursor: grabbing;
+}
+
+.thumb-card:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Used by JS: card.classList.add('dragging') */
+.thumb-card.dragging {
+    opacity: 0.35;
+    transform: scale(0.95);
+}
+
+/* Used by JS: card.classList.add('drag-over') */
+.thumb-card.drag-over {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.thumb-card img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+}
+
+/* Used by JS: innerHTML contains .thumb-footer */
+.thumb-card .thumb-footer {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.58rem;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border);
+}
+
+/* Used by JS: innerHTML contains .thumb-order */
+.thumb-card .thumb-order {
+    background: var(--accent);
+    color: #000;
+    font-weight: 500;
+    font-size: 0.58rem;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+}
+
+.btn-remove {
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    transition: color 0.15s, background 0.15s;
+    line-height: 1;
+    /* Adequate touch target */
+    min-width: 28px;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-remove:hover {
+    color: var(--danger);
+    background: rgba(255, 90, 90, 0.1);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────── */
+#empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem;
+    color: var(--muted);
+    font-size: 0.75rem;
+    text-align: center;
+    flex: 1;
+}
+
+#empty-state .big {
+    display: flex;
+    opacity: 0.18;
+    color: var(--muted);
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+#sidebar {
+    padding: 1.5rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    overflow-y: auto;
+}
+
+.sidebar-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+}
+
+.sidebar-section h3 {
+    font-family: var(--sans), sans-serif;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+label {
+    font-size: 0.72rem;
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+}
+
+select,
+input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono), monospace;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.65rem;
+    border-radius: var(--radius);
+    outline: none;
+    transition: border-color 0.15s;
+    width: 100%;
+    /* Prevent iOS zoom on focus (requires font-size >= 16px or this workaround) */
+    font-size: max(0.75rem, 16px);
+}
+
+select:focus,
+input[type="text"]:focus {
+    border-color: var(--accent);
+}
+
+select option {
+    background: var(--surface);
+}
+
+.row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.row label {
+    flex: 1;
+}
+
+/* Toggle switch */
+.toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    min-height: 32px;
+}
+
+.switch {
+    width: 38px;
+    height: 22px;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 99px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 3px;
+    top: 3px;
+    background: var(--muted);
+    border-radius: 50%;
+    transition: transform 0.2s, background 0.2s;
+}
+
+input:checked + .slider {
+    background: rgba(232, 255, 71, 0.2);
+}
+
+input:checked + .slider::before {
+    transform: translateX(16px);
+    background: var(--accent);
+}
+
+/* Stats */
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: var(--muted);
+}
+
+.stat-row span:last-child {
+    color: var(--text);
+    font-weight: 500;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn {
+    font-family: var(--mono), monospace;
+    font-size: 0.75rem;
+    padding: 0.7rem 1rem;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    transition: background 0.15s, color 0.15s, opacity 0.15s, transform 0.1s;
+    width: 100%;
+    text-align: center;
+    min-height: 44px; /* WCAG touch target */
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: #000;
+}
+
+.btn-primary:hover {
+    background: #d4eb30;
+}
+
+.btn-primary:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+    color: var(--text);
+    border-color: var(--text);
+}
+
+/* ── Progress bar ────────────────────────────────────────────────── */
+#progress-wrap {
+    display: none;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+/* Used by JS: progressWrap.classList.add('visible') */
+#progress-wrap.visible {
+    display: flex;
+}
+
+#progress-bar-track {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+#progress-bar-fill {
+    height: 100%;
+    width: 0;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 0.2s;
+}
+
+#progress-label {
+    font-size: 0.65rem;
+    color: var(--muted);
+}
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+footer {
+    border-top: 1px solid var(--border);
+    padding: 0.85rem 2.5rem;
+    font-size: 0.6rem;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    letter-spacing: 0.03em;
+}
+
+footer a {
+    color: var(--muted);
+    text-decoration: none;
+}
+
+footer a:hover {
+    color: var(--accent);
+}
+
+.footer-dot {
+    color: var(--border);
+}
+
+/* ── Mobile sticky bar ───────────────────────────────────────────── */
+#mobile-bar {
+    display: none; /* shown only on mobile via media query */
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 0.85rem 1rem;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    /* iOS safe area */
+    padding-bottom: max(0.85rem, env(safe-area-inset-bottom));
+}
+
+/* ── Animations ──────────────────────────────────────────────────── */
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ── Responsive — tablet ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+    :root {
+        --sidebar-w: 260px;
+    }
+
+    header {
+        padding: 1rem 1.5rem;
+    }
+
+    #drop-zone {
+        padding: 1.25rem;
+    }
+}
+
+/* ── Responsive — mobile ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+    /* Header */
+    header {
+        padding: 0.85rem 1rem;
+        gap: 0.5rem;
+    }
+
+    .tagline {
+        display: none;
+    }
+
+    /* No space on small screens */
+    .badge {
+        display: none;
+    }
+
+    /* Already implied by the brand */
+    /* Main: stack vertically */
+    main {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+    }
+
+    /* Drop zone */
+    #drop-zone {
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        padding: 1rem;
+        min-height: unset;
+    }
+
+    .drop-target {
+        padding: 1.75rem 1rem;
+    }
+
+    /* Smaller thumbnails — 3 per row on a typical phone */
+    #preview-grid {
+        grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+        gap: 0.5rem;
+    }
+
+    /* Sidebar */
+    #sidebar {
+        padding: 1rem;
+        gap: 1rem;
+        /* Add bottom padding so sticky bar doesn't overlap last button */
+        padding-bottom: calc(var(--mobile-bar-h) + 1rem);
+    }
+
+    /* Hide desktop generate & clear buttons, use sticky bar instead */
+    #btn-convert {
+        display: none;
+    }
+
+    #btn-clear {
+        display: none;
+    }
+
+    /* Show mobile sticky bar */
+    #mobile-bar {
+        display: block;
+    }
+
+    /* Footer */
+    footer {
+        padding: 0.75rem 1rem;
+        padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+        font-size: 0.58rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .footer-dot {
+        display: none;
+    }
+
+    /* Prevent iOS input zoom — font-size already set via max() above */
+    select,
+    input[type="text"] {
+        font-size: 16px;
+    }
+}

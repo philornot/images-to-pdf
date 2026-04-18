@@ -1,1175 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>img → pdf</title>
-
-  <!-- jsPDF from CDN — all processing happens in the browser, nothing is uploaded -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap" rel="stylesheet" />
-
-  <style>
-    /* ── Design tokens ─────────────────────────────────────────── */
-    :root {
-      --bg:        #0e0e0e;
-      --surface:   #171717;
-      --border:    #2a2a2a;
-      --accent:    #e8ff47;
-      --accent-dim:#b5c936;
-      --text:      #f0f0f0;
-      --muted:     #666;
-      --danger:    #ff5a5a;
-      --radius:    6px;
-      --mono:      'DM Mono', monospace;
-      --sans:      'Syne', sans-serif;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--mono), monospace;     /* fix: explicit generic fallback */
-      min-height: 100vh;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      overflow-x: hidden;
-    }
-
-    /* ── Header ────────────────────────────────────────────────── */
-    header {
-      padding: 2rem 3rem 1.5rem;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: baseline;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-    }
-
-    .logo {
-      font-family: var(--sans), sans-serif;    /* fix: explicit generic fallback */
-      font-weight: 800;
-      font-size: clamp(1.4rem, 3vw, 2rem);
-      letter-spacing: -0.03em;
-      color: var(--text);
-    }
-
-    .logo span { color: var(--accent); }
-
-    .tagline {
-      font-size: 0.72rem;
-      color: var(--muted);
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-    }
-
-    .header-right {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .badge {
-      font-size: 0.65rem;
-      background: #1a1a00;
-      color: var(--accent-dim);
-      border: 1px solid var(--accent-dim);
-      padding: 0.2rem 0.6rem;
-      border-radius: 99px;
-      letter-spacing: 0.06em;
-    }
-
-    /* Language toggle */
-    .lang-toggle {
-      display: flex;
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-    }
-
-    .lang-toggle button {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-family: var(--mono), monospace;     /* fix: explicit generic fallback */
-      font-size: 0.65rem;
-      padding: 0.25rem 0.55rem;
-      cursor: pointer;
-      letter-spacing: 0.06em;
-      transition: background 0.15s, color 0.15s;
-    }
-
-    .lang-toggle button.active {
-      background: var(--accent);
-      color: #000;
-    }
-
-    .lang-toggle button:not(.active):hover {
-      background: var(--surface);
-      color: var(--text);
-    }
-
-    /* ── Main layout ───────────────────────────────────────────── */
-    main {
-      display: grid;
-      grid-template-columns: 1fr 320px;
-      gap: 0;
-    }
-
-    /* ── Drop zone ─────────────────────────────────────────────── */
-    #drop-zone {
-      border-right: 1px solid var(--border);
-      padding: 2rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-      min-height: 60vh;
-    }
-
-    .drop-target {
-      border: 2px dashed var(--border);
-      border-radius: var(--radius);
-      padding: 3rem 2rem;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
-      position: relative;
-    }
-
-    /* Used by JS: dropTarget.classList.add('dragover') */
-    .drop-target:hover,
-    .drop-target.dragover {
-      border-color: var(--accent);
-      background: rgba(232, 255, 71, 0.04);
-    }
-
-    .drop-target input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      cursor: pointer;
-      width: 100%;
-      height: 100%;
-    }
-
-    .drop-icon {
-      font-size: 2.5rem;
-      margin-bottom: 0.75rem;
-      display: block;
-      opacity: 0.5;
-    }
-
-    .drop-target p {
-      font-size: 0.8rem;
-      color: var(--muted);
-      line-height: 1.6;
-    }
-
-    .drop-target strong { color: var(--accent); font-weight: 500; }
-
-    /* ── Thumbnail grid ────────────────────────────────────────── */
-    #preview-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-      gap: 0.75rem;
-    }
-
-    /* Used by JS: card.className = 'thumb-card' */
-    .thumb-card {
-      position: relative;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      overflow: hidden;
-      cursor: grab;
-      transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
-      animation: fadeUp 0.3s ease both;
-    }
-
-    .thumb-card:active { cursor: grabbing; }
-
-    .thumb-card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
-    }
-
-    /* Used by JS: card.classList.add('dragging') */
-    .thumb-card.dragging {
-      opacity: 0.35;
-      transform: scale(0.95);
-    }
-
-    /* Used by JS: card.classList.add('drag-over') */
-    .thumb-card.drag-over {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent);
-    }
-
-    .thumb-card img {
-      width: 100%;
-      aspect-ratio: 1;
-      object-fit: cover;
-      display: block;
-    }
-
-    /* Used by JS: innerHTML contains .thumb-footer */
-    .thumb-card .thumb-footer {
-      padding: 0.3rem 0.4rem;
-      font-size: 0.6rem;
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-top: 1px solid var(--border);
-    }
-
-    /* Used by JS: innerHTML contains .thumb-order */
-    .thumb-card .thumb-order {
-      background: var(--accent);
-      color: #000;
-      font-weight: 500;
-      font-size: 0.6rem;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: absolute;
-      top: 6px;
-      left: 6px;
-    }
-
-    .btn-remove {
-      background: none;
-      border: none;
-      color: var(--muted);
-      cursor: pointer;
-      padding: 2px 4px;
-      border-radius: 3px;
-      font-size: 0.7rem;
-      transition: color 0.15s, background 0.15s;
-      line-height: 1;
-    }
-
-    .btn-remove:hover {
-      color: var(--danger);
-      background: rgba(255,90,90,0.1);
-    }
-
-    /* ── Empty state ───────────────────────────────────────────── */
-    #empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 2rem;
-      color: var(--muted);
-      font-size: 0.75rem;
-      text-align: center;
-      flex: 1;
-    }
-
-    #empty-state .big { font-size: 2rem; opacity: 0.2; }
-
-    /* ── Sidebar ───────────────────────────────────────────────── */
-    #sidebar {
-      padding: 2rem 1.5rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1.5rem;
-    }
-
-    .sidebar-section {
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.9rem;
-    }
-
-    .sidebar-section h3 {
-      font-family: var(--sans), sans-serif;   /* fix: explicit generic fallback */
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--muted);
-    }
-
-    label {
-      font-size: 0.72rem;
-      color: var(--text);
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    select, input[type="text"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      color: var(--text);
-      font-family: var(--mono), monospace;    /* fix: explicit generic fallback */
-      font-size: 0.75rem;
-      padding: 0.45rem 0.65rem;
-      border-radius: var(--radius);
-      outline: none;
-      transition: border-color 0.15s;
-      width: 100%;
-    }
-
-    select:focus, input[type="text"]:focus { border-color: var(--accent); }
-
-    select option { background: var(--surface); }
-
-    .row { display: flex; gap: 0.5rem; }
-
-    .row label { flex: 1; }
-
-    /* Toggle switch */
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 0.72rem;
-    }
-
-    .switch {
-      width: 36px;
-      height: 20px;
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    .switch input { opacity: 0; width: 0; height: 0; }
-
-    .slider {
-      position: absolute;
-      inset: 0;
-      background: var(--border);
-      border-radius: 99px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .slider::before {
-      content: '';
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      left: 3px;
-      top: 3px;
-      background: var(--muted);
-      border-radius: 50%;
-      transition: transform 0.2s, background 0.2s;
-    }
-
-    input:checked + .slider { background: rgba(232,255,71,0.2); }
-
-    input:checked + .slider::before {
-      transform: translateX(16px);
-      background: var(--accent);
-    }
-
-    /* Stats */
-    .stat-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.7rem;
-      color: var(--muted);
-    }
-
-    .stat-row span:last-child { color: var(--text); font-weight: 500; }
-
-    /* ── Buttons ───────────────────────────────────────────────── */
-    .btn {
-      font-family: var(--mono), monospace;    /* fix: explicit generic fallback */
-      font-size: 0.75rem;
-      padding: 0.65rem 1rem;
-      border-radius: var(--radius);
-      border: none;
-      cursor: pointer;
-      font-weight: 500;
-      letter-spacing: 0.04em;
-      transition: background 0.15s, color 0.15s, opacity 0.15s, transform 0.1s;
-      width: 100%;
-      text-align: center;
-    }
-
-    .btn:active { transform: scale(0.98); }
-
-    .btn-primary { background: var(--accent); color: #000; }
-
-    .btn-primary:hover { background: #d4eb30; }
-
-    .btn-primary:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    .btn-ghost {
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-
-    .btn-ghost:hover { color: var(--text); border-color: var(--text); }
-
-    /* ── Progress bar ──────────────────────────────────────────── */
-    #progress-wrap {
-      display: none;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
-    /* Used by JS: progressWrap.classList.add('visible') */
-    #progress-wrap.visible { display: flex; }
-
-    #progress-bar-track {
-      width: 100%;
-      height: 4px;
-      background: var(--border);
-      border-radius: 99px;
-      overflow: hidden;
-    }
-
-    #progress-bar-fill {
-      height: 100%;
-      width: 0;                               /* fix: unitless zero (% is redundant) */
-      background: var(--accent);
-      border-radius: 99px;
-      transition: width 0.2s;
-    }
-
-    #progress-label { font-size: 0.65rem; color: var(--muted); }
-
-    /* ── Footer ────────────────────────────────────────────────── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 0.9rem 3rem;
-      font-size: 0.62rem;
-      color: var(--muted);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      letter-spacing: 0.04em;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-    }
-
-    footer a { color: var(--muted); text-decoration: none; }
-    footer a:hover { color: var(--accent); }
-
-    /* ── Animations ────────────────────────────────────────────── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    /* ── Responsive ────────────────────────────────────────────── */
-    @media (max-width: 700px) {
-      header { padding: 1.25rem 1rem; }
-      main { grid-template-columns: 1fr; }
-      #drop-zone { border-right: none; border-bottom: 1px solid var(--border); }
-      #sidebar { padding: 1.5rem 1rem; }
-      footer { padding: 0.9rem 1rem; }
-    }
-  </style>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>img → pdf</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;700;800&display=swap"
+          rel="stylesheet"/>
+    <link rel="stylesheet" href="style.css"/>
+
+    <!-- jsPDF — all PDF processing happens in the browser, nothing is uploaded -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+    <script src="app.js" defer></script>
 </head>
 <body>
 
 <!-- ── Header ──────────────────────────────────────────────────── -->
 <header>
-  <div class="logo">img<span>→</span>pdf</div>
-  <span class="tagline" data-i18n="tagline">client-side · no upload · no server</span>
-  <div class="header-right">
-    <span class="badge" data-i18n="badge">100% offline</span>
-    <div class="lang-toggle">
-      <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
-      <button id="lang-pl" onclick="setLang('pl')">PL</button>
+    <div class="logo-group">
+        <div class="logo">img<span>→</span>pdf</div>
+        <!--
+          Intentionally empty — text is injected by setLang() on first load.
+          Leaving hardcoded text here would show the wrong language before JS runs.
+        -->
+        <span class="tagline" data-i18n="tagline"></span>
     </div>
-  </div>
+
+    <div class="header-right">
+        <span class="badge" data-i18n="badge"></span>
+        <div class="lang-toggle">
+            <button id="lang-en" class="active" onclick="setLang('en')">EN</button>
+            <button id="lang-pl" onclick="setLang('pl')">PL</button>
+        </div>
+    </div>
 </header>
 
 <!-- ── Main ────────────────────────────────────────────────────── -->
 <main>
 
-  <section id="drop-zone">
-    <div class="drop-target" id="drop-target">
-      <input type="file" id="file-input" accept="image/*" multiple aria-label="Select images" />
-      <span class="drop-icon">⊕</span>
-      <p>
-        <strong data-i18n="dropTitle">Click to add images</strong><br />
-        <span data-i18n="dropSub">or drag &amp; drop them here</span><br />
-        <span style="color:#444;font-size:0.65rem;margin-top:0.4rem;display:block;">
-          JPG · PNG · WebP · GIF · BMP · AVIF
-        </span>
-      </p>
-    </div>
+    <!-- Left: drop zone + thumbnails -->
+    <section id="drop-zone">
+        <div class="drop-target" id="drop-target">
+            <input type="file" id="file-input" accept="image/*" multiple aria-label="Select images"/>
+            <!-- Upload / add images icon -->
+            <span class="drop-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"
+             stroke-linejoin="round" width="48" height="48">
+          <rect x="2" y="2" width="20" height="20" rx="3"/>
+          <circle cx="8" cy="8.5" r="1.75"/>
+          <polyline points="2 16.5 7.5 11 11.5 15"/>
+          <polyline points="13 13 16.5 9.5 22 16.5"/>
+          <line x1="15" y1="5.5" x2="21" y2="5.5"/>
+          <line x1="18" y1="2.5" x2="18" y2="8.5"/>
+        </svg>
+      </span>
+            <p>
+                <strong data-i18n="dropTitle"></strong><br/>
+                <span data-i18n="dropSub"></span><br/>
+                <span class="formats">JPG · PNG · WebP · GIF · BMP · AVIF</span>
+            </p>
+        </div>
 
-    <div id="preview-grid"></div>
+        <div id="preview-grid"></div>
 
-    <div id="empty-state">
-      <span class="big">📄</span>
-      <span data-i18n="emptyHint">Your images will appear here.<br />Drag to reorder.</span>
-    </div>
-  </section>
+        <div id="empty-state">
+            <!-- Empty state: stacked files icon -->
+            <span class="big" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"
+             stroke-linejoin="round" width="52" height="52">
+          <rect x="4" y="5" width="13" height="16" rx="2"/>
+          <path d="M7 3h10a2 2 0 0 1 2 2v14"/>
+          <line x1="7" y1="10" x2="13" y2="10"/>
+          <line x1="7" y1="13" x2="13" y2="13"/>
+          <line x1="7" y1="16" x2="10" y2="16"/>
+        </svg>
+      </span>
+            <span data-i18n="emptyHint"></span>
+        </div>
+    </section>
 
-  <aside id="sidebar">
+    <!-- Right: settings sidebar -->
+    <aside id="sidebar">
 
-    <div class="sidebar-section">
-      <h3 data-i18n="sectionPage">Page settings</h3>
+        <div class="sidebar-section">
+            <h3 data-i18n="sectionPage"></h3>
 
-      <label>
-        <span data-i18n="labelPageSize">Paper size</span>
-        <select id="page-size">
-          <option value="a4">A4  (210 × 297 mm)</option>
-          <option value="letter">Letter  (8.5 × 11 in)</option>
-          <option value="a3">A3  (297 × 420 mm)</option>
-          <option value="a5">A5  (148 × 210 mm)</option>
-          <option value="fit" data-i18n="optFit">Fit to image</option>
-        </select>
-      </label>
+            <label>
+                <span data-i18n="labelPageSize"></span>
+                <select id="page-size">
+                    <option value="a4">A4 (210 × 297 mm)</option>
+                    <option value="letter">Letter (8.5 × 11 in)</option>
+                    <option value="a3">A3 (297 × 420 mm)</option>
+                    <option value="a5">A5 (148 × 210 mm)</option>
+                    <option value="fit" data-i18n="optFit"></option>
+                </select>
+            </label>
 
-      <label>
-        <span data-i18n="labelOrientation">Orientation</span>
-        <select id="orientation">
-          <option value="auto"      data-i18n="optAuto">Auto (per image)</option>
-          <option value="portrait"  data-i18n="optPortrait">Portrait</option>
-          <option value="landscape" data-i18n="optLandscape">Landscape</option>
-        </select>
-      </label>
+            <label>
+                <span data-i18n="labelOrientation"></span>
+                <select id="orientation">
+                    <option value="auto" data-i18n="optAuto"></option>
+                    <option value="portrait" data-i18n="optPortrait"></option>
+                    <option value="landscape" data-i18n="optLandscape"></option>
+                </select>
+            </label>
 
-      <div class="row">
-        <label>
-          <span data-i18n="labelMargin">Margin (mm)</span>
-          <input type="text" id="margin" value="0" />
-        </label>
-        <label>
-          <span data-i18n="labelQuality">Quality</span>
-          <select id="quality">
-            <option value="0.95" data-i18n="qualHigh">High</option>
-            <option value="0.80" data-i18n="qualMed" selected>Medium</option>
-            <option value="0.60" data-i18n="qualLow">Low</option>
-          </select>
-        </label>
-      </div>
-    </div>
+            <div class="row">
+                <label>
+                    <span data-i18n="labelMargin"></span>
+                    <input type="text" id="margin" value="0" inputmode="decimal"/>
+                </label>
+                <label>
+                    <span data-i18n="labelQuality"></span>
+                    <select id="quality">
+                        <option value="0.95" data-i18n="qualHigh"></option>
+                        <option value="0.80" data-i18n="qualMed" selected></option>
+                        <option value="0.60" data-i18n="qualLow"></option>
+                    </select>
+                </label>
+            </div>
+        </div>
 
-    <div class="sidebar-section">
-      <h3 data-i18n="sectionOutput">Output</h3>
+        <div class="sidebar-section">
+            <h3 data-i18n="sectionOutput"></h3>
 
-      <label>
-        <span data-i18n="labelFilename">File name</span>
-        <input type="text" id="filename" value="output" />
-      </label>
+            <label>
+                <span data-i18n="labelFilename"></span>
+                <input type="text" id="filename" value="output"/>
+            </label>
 
-      <div class="toggle-row">
-        <span data-i18n="labelOnePerPage">One image per page</span>
-        <label class="switch">
-          <input type="checkbox" id="one-per-page" checked />
-          <span class="slider"></span>
-        </label>
-      </div>
-    </div>
+            <div class="toggle-row">
+                <span data-i18n="labelOnePerPage"></span>
+                <label class="switch">
+                    <input type="checkbox" id="one-per-page" checked/>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
 
-    <div class="sidebar-section">
-      <h3 data-i18n="sectionQueue">Queue</h3>
-      <div class="stat-row">
-        <span data-i18n="statImages">Images loaded</span>
-        <span id="stat-count">0</span>
-      </div>
-      <div class="stat-row">
-        <span data-i18n="statSize">Total size</span>
-        <span id="stat-size">—</span>
-      </div>
-    </div>
+        <div class="sidebar-section">
+            <h3 data-i18n="sectionQueue"></h3>
+            <div class="stat-row">
+                <span data-i18n="statImages"></span>
+                <span id="stat-count">0</span>
+            </div>
+            <div class="stat-row">
+                <span data-i18n="statSize"></span>
+                <span id="stat-size">—</span>
+            </div>
+        </div>
 
-    <div id="progress-wrap">
-      <div id="progress-bar-track">
-        <div id="progress-bar-fill"></div>
-      </div>
-      <span id="progress-label"></span>
-    </div>
+        <div id="progress-wrap">
+            <div id="progress-bar-track">
+                <div id="progress-bar-fill"></div>
+            </div>
+            <span id="progress-label"></span>
+        </div>
 
-    <button class="btn btn-primary" id="btn-convert" disabled data-i18n="btnGenerate">
-      Generate PDF
-    </button>
-    <button class="btn btn-ghost" id="btn-clear" data-i18n="btnClear">
-      Clear all
-    </button>
+        <button class="btn btn-primary" id="btn-convert" disabled data-i18n="btnGenerate"></button>
+        <button class="btn btn-ghost" id="btn-clear" data-i18n="btnClear"></button>
 
-  </aside>
+    </aside>
 </main>
 
 <!-- ── Footer ──────────────────────────────────────────────────── -->
 <footer>
-  <span data-i18n="footerPrivacy">All processing happens locally in your browser. No data leaves your device.</span>
-  <span>
-    <span data-i18n="footerPowered">Powered by</span>
+    <span data-i18n="footerPowered"></span>
     <a href="https://github.com/parallax/jsPDF" target="_blank" rel="noopener">jsPDF</a>
-  </span>
+    <span class="footer-dot">·</span>
+    <a href="https://github.com/philornot/images-to-pdf" target="_blank" rel="noopener">
+        github.com/philornot/images-to-pdf
+    </a>
 </footer>
 
-<script>
-  /**
-   * @fileoverview Client-side image-to-PDF converter with EN/PL localisation.
-   *
-   * Relies on jsPDF (loaded from CDN) for PDF generation.
-   * All image data stays in-browser — nothing is sent to any server.
-   */
+<!-- Mobile sticky generate bar (hidden on desktop) -->
+<div id="mobile-bar">
+    <button class="btn btn-primary" id="btn-convert-mobile" disabled data-i18n="btnGenerate"></button>
+</div>
 
-  'use strict';
-
-  /* ── i18n ─────────────────────────────────────────────────────── */
-
-  /**
-   * Translation map keyed by language code.
-   *
-   * @type {Record<string, Record<string, string | ((...args: number[]) => string)>>}
-   */
-  const TRANSLATIONS = {
-    en: {
-      tagline:         'client-side · no upload · no server',
-      badge:           '100% offline',
-      dropTitle:       'Click to add images',
-      dropSub:         'or drag & drop them here',
-      emptyHint:       'Your images will appear here.<br />Drag to reorder.',
-      sectionPage:     'Page settings',
-      labelPageSize:   'Paper size',
-      optFit:          'Fit to image',
-      labelOrientation:'Orientation',
-      optAuto:         'Auto (per image)',
-      optPortrait:     'Portrait',
-      optLandscape:    'Landscape',
-      labelMargin:     'Margin (mm)',
-      labelQuality:    'Quality',
-      qualHigh:        'High',
-      qualMed:         'Medium',
-      qualLow:         'Low',
-      sectionOutput:   'Output',
-      labelFilename:   'File name',
-      labelOnePerPage: 'One image per page',
-      sectionQueue:    'Queue',
-      statImages:      'Images loaded',
-      statSize:        'Total size',
-      btnGenerate:     'Generate PDF',
-      btnClear:        'Clear all',
-      footerPrivacy:   'All processing happens locally in your browser. No data leaves your device.',
-      footerPowered:   'Powered by',
-      progressStart:   'Starting\u2026',
-      progressImg:     (cur, total) => `Processing image ${cur} of ${total}\u2026`,
-      progressDone:    'Done \u2014 saving\u2026',
-      removeLabel:     'Remove',
-    },
-    pl: {
-      tagline:         'po stronie klienta \xb7 bez wysy\u0142ania \xb7 bez serwera',
-      badge:           '100% offline',
-      dropTitle:       'Kliknij, aby doda\u0107 zdj\u0119cia',
-      dropSub:         'lub przeci\u0105gnij i upu\u015b\u0107 je tutaj',
-      emptyHint:       'Twoje zdj\u0119cia pojawi\u0105 si\u0119 tutaj.<br />Przeci\u0105gaj, aby zmieni\u0107 kolejno\u015b\u0107.',
-      sectionPage:     'Ustawienia strony',
-      labelPageSize:   'Rozmiar strony',
-      optFit:          'Dopasuj do zdj\u0119cia',
-      labelOrientation:'Orientacja',
-      optAuto:         'Auto (per zdj\u0119cie)',
-      optPortrait:     'Pionowa',
-      optLandscape:    'Pozioma',
-      labelMargin:     'Margines (mm)',
-      labelQuality:    'Jako\u015b\u0107',
-      qualHigh:        'Wysoka',
-      qualMed:         '\u015aredniak',
-      qualLow:         'Niska',
-      sectionOutput:   'Plik wynikowy',
-      labelFilename:   'Nazwa pliku',
-      labelOnePerPage: 'Jedno zdj\u0119cie na stron\u0119',
-      sectionQueue:    'Kolejka',
-      statImages:      'Wczytane zdj\u0119cia',
-      statSize:        '\u0141\u0105czny rozmiar',
-      btnGenerate:     'Generuj PDF',
-      btnClear:        'Wyczy\u015b\u0107 wszystko',
-      footerPrivacy:   'Przetwarzanie odbywa si\u0119 lokalnie w przegl\u0105darce. \u017badne dane nie opuszczaj\u0105 urz\u0105dzenia.',
-      footerPowered:   'Silnik:',
-      progressStart:   'Uruchamianie\u2026',
-      progressImg:     (cur, total) => `Przetwarzanie zdj\u0119cia ${cur} z ${total}\u2026`,
-      progressDone:    'Gotowe \u2014 zapisywanie\u2026',
-      removeLabel:     'Usu\u0144',
-    },
-  };
-
-  /** @type {'en'|'pl'} */
-  let currentLang = 'en';
-
-  /**
-   * Returns the translated value for the given key in the active language,
-   * falling back to English when the key is missing.
-   *
-   * @param {string}    key  - Translation key.
-   * @param {...number} args - Interpolation args forwarded to function-valued translations.
-   * @returns {string}
-   */
-  function t(key, ...args) {
-    const dict  = TRANSLATIONS[currentLang] ?? TRANSLATIONS['en'];
-    const value = dict[key] ?? TRANSLATIONS['en'][key] ?? key;
-    return typeof value === 'function' ? value(...args) : String(value);
-  }
-
-  /**
-   * Switches the active language and re-translates all data-i18n nodes in the DOM.
-   * Also re-renders the thumbnail grid so dynamically generated strings update.
-   *
-   * @param {'en'|'pl'} lang - Target language code.
-   * @returns {void}
-   */
-  function setLang(lang) {
-    currentLang = lang;
-    document.documentElement.lang = lang;
-
-    const btnEn = document.getElementById('lang-en');
-    const btnPl = document.getElementById('lang-pl');
-    if (btnEn) btnEn.classList.toggle('active', lang === 'en');
-    if (btnPl) btnPl.classList.toggle('active', lang === 'pl');
-
-    document.querySelectorAll('[data-i18n]').forEach((el) => {
-      const key        = el.getAttribute('data-i18n') ?? '';
-      const translated = t(key);
-      // Use innerHTML only when the translation contains HTML tags (e.g. <br />).
-      if (translated.includes('<')) {
-        el.innerHTML = translated;
-      } else {
-        el.textContent = translated;
-      }
-    });
-
-    renderGrid();
-  }
-
-  /* ── State ───────────────────────────────────────────────────── */
-
-  /**
-   * @typedef  {object} ImageEntry
-   * @property {string} id      - UUID assigned on load.
-   * @property {File}   file    - Original File object.
-   * @property {string} dataUrl - Base64 data-URL.
-   * @property {string} name    - Original filename.
-   * @property {number} size    - File size in bytes.
-   */
-
-  /** @type {ImageEntry[]} */
-  let images = [];
-
-  /** @type {string|null} UUID of the card currently being dragged. */
-  let dragId = null;
-
-  /* ── DOM refs ─────────────────────────────────────────────────── */
-  const dropTarget    = /** @type {HTMLElement}       */ (document.getElementById('drop-target'));
-  const fileInput     = /** @type {HTMLInputElement}  */ (document.getElementById('file-input'));
-  const previewGrid   = /** @type {HTMLElement}       */ (document.getElementById('preview-grid'));
-  const emptyState    = /** @type {HTMLElement}       */ (document.getElementById('empty-state'));
-  const btnConvert    = /** @type {HTMLButtonElement} */ (document.getElementById('btn-convert'));
-  const btnClear      = /** @type {HTMLButtonElement} */ (document.getElementById('btn-clear'));
-  const statCount     = /** @type {HTMLElement}       */ (document.getElementById('stat-count'));
-  const statSize      = /** @type {HTMLElement}       */ (document.getElementById('stat-size'));
-  const progressWrap  = /** @type {HTMLElement}       */ (document.getElementById('progress-wrap'));
-  const progressFill  = /** @type {HTMLElement}       */ (document.getElementById('progress-bar-fill'));
-  const progressLabel = /** @type {HTMLElement}       */ (document.getElementById('progress-label'));
-
-  /* ── File input handling ─────────────────────────────────────── */
-
-  fileInput.addEventListener('change', (e) => {
-    const input = /** @type {HTMLInputElement} */ (e.target);
-    if (input.files) handleFiles(input.files);
-  });
-
-  dropTarget.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropTarget.classList.add('dragover');
-  });
-
-  dropTarget.addEventListener('dragleave', () => dropTarget.classList.remove('dragover'));
-
-  dropTarget.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropTarget.classList.remove('dragover');
-    if (e.dataTransfer?.files) handleFiles(e.dataTransfer.files);
-  });
-
-  /**
-   * Reads a FileList, filters for image MIME types, converts each file to a
-   * base64 data-URL via FileReader, and appends it to the `images` state array.
-   *
-   * @param {FileList} fileList - Raw files from an input or drag event.
-   * @returns {void}
-   */
-  function handleFiles(fileList) {
-    const valid = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
-    if (!valid.length) return;
-
-    let loaded = 0;
-
-    valid.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const result = ev.target?.result;
-        if (typeof result === 'string') {
-          images.push({ id: crypto.randomUUID(), file, dataUrl: result, name: file.name, size: file.size });
-        }
-        if (++loaded === valid.length) renderGrid();
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-
-  /* ── Thumbnail grid ──────────────────────────────────────────── */
-
-  /**
-   * Re-renders the entire thumbnail grid from the current `images` state.
-   * Also syncs stats and the convert button's disabled state.
-   *
-   * @returns {void}
-   */
-  function renderGrid() {
-    previewGrid.innerHTML = '';
-    emptyState.style.display = images.length ? 'none' : 'flex';
-    btnConvert.disabled = images.length === 0;
-
-    images.forEach((img, index) => {
-      const card = document.createElement('div');
-      card.className    = 'thumb-card';
-      card.dataset['id'] = img.id;
-      card.draggable    = true;
-
-      card.innerHTML = `
-        <div class="thumb-order">${index + 1}</div>
-        <img src="${img.dataUrl}" alt="${img.name}" loading="lazy" />
-        <div class="thumb-footer">
-          <span title="${img.name}">${truncate(img.name, 12)}</span>
-          <button class="btn-remove" data-id="${img.id}" title="${t('removeLabel')}">&#x2715;</button>
-        </div>
-      `;
-
-      card.addEventListener('dragstart', onDragStart);
-      card.addEventListener('dragover',  onDragOver);
-      card.addEventListener('dragleave', onDragLeave);
-      card.addEventListener('drop',      onDrop);
-      card.addEventListener('dragend',   onDragEnd);
-
-      card.querySelector('.btn-remove')?.addEventListener('click', (e) => {
-        e.stopPropagation();
-        removeImage(img.id);
-      });
-
-      previewGrid.appendChild(card);
-    });
-
-    updateStats();
-  }
-
-  /**
-   * Removes an image from state by its UUID and re-renders the grid.
-   *
-   * @param {string} id - UUID of the image to remove.
-   * @returns {void}
-   */
-  function removeImage(id) {
-    images = images.filter((img) => img.id !== id);
-    renderGrid();
-  }
-
-  /* ── Drag-and-drop reordering ────────────────────────────────── */
-
-  /** @param {DragEvent} e @returns {void} */
-  function onDragStart(e) {
-    const card = /** @type {HTMLElement} */ (e.currentTarget);
-    dragId     = card.dataset['id'] ?? null;
-    card.classList.add('dragging');
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
-  }
-
-  /** @param {DragEvent} e @returns {void} */
-  function onDragOver(e) {
-    e.preventDefault();
-    /** @type {HTMLElement} */ (e.currentTarget).classList.add('drag-over');
-  }
-
-  /** @param {DragEvent} e @returns {void} */
-  function onDragLeave(e) {
-    /** @type {HTMLElement} */ (e.currentTarget).classList.remove('drag-over');
-  }
-
-  /** @param {DragEvent} e @returns {void} */
-  function onDrop(e) {
-    e.preventDefault();
-    const card     = /** @type {HTMLElement} */ (e.currentTarget);
-    const targetId = card.dataset['id'];
-    card.classList.remove('drag-over');
-
-    if (dragId && targetId && dragId !== targetId) {
-      const fromIdx = images.findIndex((i) => i.id === dragId);
-      const toIdx   = images.findIndex((i) => i.id === targetId);
-      if (fromIdx !== -1 && toIdx !== -1) {
-        const [moved] = images.splice(fromIdx, 1);
-        images.splice(toIdx, 0, moved);
-        renderGrid();
-      }
-    }
-  }
-
-  /** @param {DragEvent} e @returns {void} */
-  function onDragEnd(e) {
-    /** @type {HTMLElement} */ (e.currentTarget).classList.remove('dragging');
-    dragId = null;
-  }
-
-  /* ── Stats ───────────────────────────────────────────────────── */
-
-  /**
-   * Updates the queue stat display (image count + total raw file size).
-   *
-   * @returns {void}
-   */
-  function updateStats() {
-    statCount.textContent = String(images.length);       /* fix: explicit String() cast */
-    const total = images.reduce((acc, img) => acc + img.size, 0);
-    statSize.textContent  = images.length ? formatBytes(total) : '—';
-  }
-
-  /* ── Clear all ───────────────────────────────────────────────── */
-
-  btnClear.addEventListener('click', () => {
-    images = [];
-    fileInput.value = '';
-    renderGrid();
-  });
-
-  /* ── PDF generation ──────────────────────────────────────────── */
-
-  btnConvert.addEventListener('click', generatePdf);
-
-  /**
-   * Generates a PDF from the current `images` array using jsPDF.
-   *
-   * Each image is first re-encoded through an offscreen canvas at the
-   * selected quality level, then placed on a PDF page. Progress is shown
-   * in the sidebar progress bar. The resulting file triggers an auto-download.
-   *
-   * @async
-   * @returns {Promise<void>}
-   */
-  async function generatePdf() {
-    if (!images.length) return;
-
-    const pageSize   = /** @type {HTMLSelectElement} */ (document.getElementById('page-size')).value;
-    const orient     = /** @type {HTMLSelectElement} */ (document.getElementById('orientation')).value;
-    const margin     = parseFloat(/** @type {HTMLInputElement}  */ (document.getElementById('margin')).value) || 0;
-    const quality    = parseFloat(/** @type {HTMLSelectElement} */ (document.getElementById('quality')).value);
-    const onePerPage = /** @type {HTMLInputElement}  */ (document.getElementById('one-per-page')).checked;
-    const rawName    = /** @type {HTMLInputElement}  */ (document.getElementById('filename')).value.trim();
-    const filename   = (rawName || 'output').replace(/\.pdf$/i, '');
-
-    btnConvert.disabled = true;
-    showProgress(0, t('progressStart'));
-
-    await sleep(50);   // yield so the UI can paint before synchronous PDF work
-
-    try {
-      const { jsPDF } = /** @type {any} */ (window).jspdf;
-
-      /**
-       * The jsPDF document instance.
-       * Initialised on the first iteration; guaranteed non-null afterwards.
-       *
-       * @type {InstanceType<typeof jsPDF>|null}
-       */
-      let doc = null;
-
-      for (let i = 0; i < images.length; i++) {
-        const img = images[i];
-        showProgress(Math.round((i / images.length) * 100), t('progressImg', i + 1, images.length));
-
-        // Re-encode through canvas to apply the quality setting.  /* fix: quality is now used */
-        const { dataUrl: encoded, width: imgW, height: imgH } =
-          await reencodeImage(img.dataUrl, quality);
-
-        const pageOrientation = resolveOrientation(orient, imgW, imgH);
-        const jsPdfFormat     = pageSize === 'fit' ? [pxToMm(imgW), pxToMm(imgH)] : pageSize;
-
-        if (i === 0) {
-          // First image — create the document.
-          doc = new jsPDF({ orientation: pageOrientation, unit: 'mm', format: jsPdfFormat });
-        } else if (onePerPage) {
-          // Subsequent images with "one per page" ON — add a new page.
-          doc.addPage(jsPdfFormat, pageOrientation);
-        }
-        // When onePerPage is OFF, all images render onto the first page (i===0).
-
-        // Null guard: doc is always set at i===0, so this only triggers on a
-        // logic error. Break rather than throw to still attempt a save.  /* fix: doc possibly null */
-        if (!doc) break;
-
-        const pageW = doc.internal.pageSize.getWidth();
-        const pageH = doc.internal.pageSize.getHeight();
-        const areaW = pageW - margin * 2;
-        const areaH = pageH - margin * 2;
-
-        const { drawW, drawH } = fitImage(imgW, imgH, areaW, areaH);
-        const x = margin + (areaW - drawW) / 2;
-        const y = margin + (areaH - drawH) / 2;
-
-        doc.addImage(encoded, 'JPEG', x, y, drawW, drawH, undefined, 'FAST', 0);
-
-        await sleep(10);
-      }
-
-      showProgress(100, t('progressDone'));
-      await sleep(100);
-      doc?.save(`${filename}.pdf`);
-
-    } catch (err) {
-      console.error('[img\u2192pdf] PDF generation failed:', err);
-      alert(err instanceof Error ? err.message : String(err));
-    } finally {
-      hideProgress();
-      btnConvert.disabled = false;
-    }
-  }
-
-  /* ── Helpers ─────────────────────────────────────────────────── */
-
-  /**
-   * Re-encodes a source image through an offscreen <canvas> at the requested
-   * JPEG quality level. This is the actual mechanism that controls file size.
-   *
-   * @param {string} dataUrl  - Source image data-URL (any format).
-   * @param {number} quality  - JPEG encoding quality 0–1 (e.g. 0.8 = medium).
-   * @returns {Promise<{dataUrl: string, width: number, height: number}>}
-   */
-  function reencodeImage(dataUrl, quality) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas  = document.createElement('canvas');
-        canvas.width  = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { reject(new Error('Canvas 2D context unavailable')); return; }
-        ctx.drawImage(img, 0, 0);
-        resolve({
-          dataUrl: canvas.toDataURL('image/jpeg', quality),
-          width:   img.naturalWidth,
-          height:  img.naturalHeight,
-        });
-      };
-      img.onerror = () => reject(new Error('Failed to decode image for re-encoding'));
-      img.src = dataUrl;
-    });
-  }
-
-  /**
-   * Resolves the page orientation from the user setting and the image dimensions.
-   *
-   * @param {string} setting - 'auto' | 'portrait' | 'landscape'
-   * @param {number} imgW    - Image width in pixels.
-   * @param {number} imgH    - Image height in pixels.
-   * @returns {'portrait'|'landscape'}
-   */
-  function resolveOrientation(setting, imgW, imgH) {
-    if (setting === 'portrait')  return 'portrait';
-    if (setting === 'landscape') return 'landscape';
-    return imgW >= imgH ? 'landscape' : 'portrait';
-  }
-
-  /**
-   * Calculates the draw dimensions that fit an image within a bounding box
-   * while preserving its aspect ratio (scale-to-fit / contain).
-   *
-   * @param {number} imgW - Original image width.
-   * @param {number} imgH - Original image height.
-   * @param {number} boxW - Available width.
-   * @param {number} boxH - Available height.
-   * @returns {{drawW: number, drawH: number}}
-   */
-  function fitImage(imgW, imgH, boxW, boxH) {
-    const ratio = Math.min(boxW / imgW, boxH / imgH);
-    return { drawW: imgW * ratio, drawH: imgH * ratio };
-  }
-
-  /**
-   * Converts a pixel value to millimetres, assuming a 96 DPI screen.
-   *
-   * @param {number} px - Pixel count.
-   * @returns {number} Value in millimetres.
-   */
-  function pxToMm(px) {
-    return (px * 25.4) / 96;
-  }
-
-  /**
-   * Shows the progress bar and updates its state.
-   *
-   * @param {number} pct   - Completion percentage 0–100.
-   * @param {string} label - Status text shown below the bar.
-   * @returns {void}
-   */
-  function showProgress(pct, label) {
-    progressWrap.classList.add('visible');
-    progressFill.style.width  = `${pct}%`;
-    progressLabel.textContent = label;
-  }
-
-  /**
-   * Hides the progress bar and resets its fill width.
-   *
-   * @returns {void}
-   */
-  function hideProgress() {
-    progressWrap.classList.remove('visible');
-    progressFill.style.width = '0';
-  }
-
-  /**
-   * Returns a Promise that resolves after `ms` milliseconds.
-   *
-   * @param {number} ms - Delay in milliseconds.
-   * @returns {Promise<void>}
-   */
-  function sleep(ms) {
-    return new Promise((r) => setTimeout(r, ms));
-  }
-
-  /**
-   * Truncates a string to `max` characters, appending an ellipsis if needed.
-   *
-   * @param {string} str - Input string.
-   * @param {number} max - Maximum length.
-   * @returns {string}
-   */
-  function truncate(str, max) {
-    return str.length > max ? str.slice(0, max - 1) + '\u2026' : str;
-  }
-
-  /**
-   * Formats a raw byte count into a human-readable string (B / KB / MB).
-   *
-   * @param {number} bytes - Raw byte count.
-   * @returns {string}
-   */
-  function formatBytes(bytes) {
-    if (bytes < 1024)        return `${bytes} B`;
-    if (bytes < 1048576)     return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / 1048576).toFixed(2)} MB`;
-  }
-
-  /* ── Init ────────────────────────────────────────────────────── */
-  renderGrid();
-</script>
 </body>
 </html>

@@ -31,7 +31,6 @@
 const TRANSLATIONS = {
   en: {
     tagline:          'All processing happens locally in your browser. No data leaves your device.',
-    badge:            '100% offline',
     dropTitle:        'Click to add images',
     dropSub:          'or drag & drop them here',
     emptyHint:        'Your images will appear here.<br />Drag to reorder.',
@@ -63,7 +62,6 @@ const TRANSLATIONS = {
   },
   pl: {
     tagline:          'Przetwarzanie odbywa si\u0119 lokalnie w przegl\u0105darce. \u017badne dane nie opuszczaj\u0105 urz\u0105dzenia.',
-    badge:            '100% offline',
     dropTitle:        'Kliknij, aby doda\u0107 zdj\u0119cia',
     dropSub:          'lub przeci\u0105gnij i upu\u015b\u0107 je tutaj',
     emptyHint:        'Twoje zdj\u0119cia pojawi\u0105 si\u0119 tutaj.<br />Przeci\u0105gaj, aby zmieni\u0107 kolejno\u015b\u0107.',

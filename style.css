@@ -70,17 +70,6 @@ header {
   flex-shrink: 0;
 }
 
-.badge {
-  font-size: 0.62rem;
-  background: #1a1a00;
-  color: var(--accent-dim);
-  border: 1px solid var(--accent-dim);
-  padding: 0.2rem 0.6rem;
-  border-radius: 99px;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-}
-
 /* Language toggle */
 .lang-toggle {
   display: flex;
@@ -524,8 +513,6 @@ footer a:hover { color: var(--accent); }
   }
 
   .tagline { display: none; } /* No space on small screens */
-
-  .badge { display: none; }   /* Already implied by the brand */
 
   /* Main: stack vertically */
   main {
